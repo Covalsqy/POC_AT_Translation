@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Translation Result</title>
+    <style>
+      body { font-family: Arial, sans-serif; max-width: 900px; margin: 2rem auto; }
+      textarea { width: 100%; height: 500px; }
+      a.button { display:inline-block; padding:.4rem .8rem; background:#2b7; color:#000; text-decoration:none; border-radius:4px; margin-top:.5rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Translation Result</h1>
+
+    <p>
+      <a class="button" href="{{ download_url }}">Download .txt</a>
+      <a href="{{ url_for('index') }}" style="margin-left:1rem;">Translate another</a>
+    </p>
+
+    <h3>Translated text (copy or download)</h3>
+    <textarea readonly>{{ translated_text }}</textarea>
+  </body>
+</html>

@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>PDF Translator - POC</title>
+    <style>
+      body { font-family: Arial, sans-serif; max-width: 900px; margin: 2rem auto; }
+      label, select, input { display: block; margin: .5rem 0; }
+      textarea { width: 100%; height: 300px; }
+      .note { color: #666; font-size: .9rem; }
+    </style>
+  </head>
+  <body>
+    <h1>PDF Translator (POC)</h1>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul style="color: red;">
+          {% for m in messages %}
+            <li>{{ m }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <form action="{{ url_for('translate') }}" method="post" enctype="multipart/form-data">
+      <label for="pdf_file">PDF file</label>
+      <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" required />
+
+      <label for="source_lang">Source language</label>
+      <select name="source_lang" id="source_lang">
+        {% for l in languages %}
+          <option value="{{ l }}" {% if l == 'portuguese' %}selected{% endif %}>{{ l }}</option>
+        {% endfor %}
+      </select>
+
+      <label for="target_lang">Target language</label>
+      <select name="target_lang" id="target_lang">
+        {% for l in languages %}
+          <option value="{{ l }}" {% if l == 'english' %}selected{% endif %}>{{ l }}</option>
+        {% endfor %}
+      </select>
+
+      <p class="note">The page may take a while for large PDFs. Check the terminal for progress logs.</p>
+
+      <button type="submit">Translate</button>
+    </form>
+  </body>
+</html>
