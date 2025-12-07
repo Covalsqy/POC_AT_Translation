@@ -7,3 +7,4 @@ protobuf==6.33.1
 pdfminer.six==20251107
 PyPDF2==3.0.1
 numpy==2.2.6
+unbabel-comet==2.2.2

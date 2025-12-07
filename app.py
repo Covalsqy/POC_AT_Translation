@@ -6,6 +6,7 @@ from werkzeug.utils import secure_filename
 
 from pdf_document_management import PDFDocumentManager
 from translation_model import TranslationModel
+from quality_estimator import QualityEstimator
 
 ALLOWED_EXTENSIONS = {'pdf'}
 
@@ -20,7 +21,8 @@ translation_state = {
     "result": None,
     "original": None,
     "download_url": None,
-    "error": None
+    "error": None,
+    "quality_score": None
 }
 
 
@@ -63,6 +65,17 @@ def _translate_background(uploaded_path: Path, src_lang: str, tgt_lang: str, out
         # Save translated text to temporary file
         out_path = UPLOAD_DIR / out_name
         PDFDocumentManager.save_text_to_file(translated, str(out_path))
+
+        # Estimate translation quality using COMET-QE
+        print("Evaluating translation quality...")
+        try:
+            estimator = QualityEstimator()
+            quality_result = estimator.evaluate_with_interpretation(cleaned, translated)
+            translation_state["quality_score"] = quality_result
+            print(f"Quality Score: {quality_result['score']:.1f}/100 ({quality_result['level']})")
+        except Exception as qe_error:
+            print(f"Warning: Quality estimation failed: {qe_error}")
+            translation_state["quality_score"] = None
 
         translation_state["result"] = translated
         translation_state["download_url"] = f"/download/{out_name}"
@@ -108,7 +121,8 @@ def translate():
         "result": None,
         "original": None,
         "download_url": None,
-        "error": None
+        "error": None,
+        "quality_score": None
     })
 
     out_name = uploaded_path.stem + f"_{tgt_lang}.txt"

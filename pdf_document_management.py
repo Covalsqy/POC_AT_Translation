@@ -60,7 +60,10 @@ class PDFDocumentManager:
 
         # Normalize whitespace but preserve paragraphs
         text = re.sub(r'[ \t]{2,}', ' ', text)
-        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        # AGGRESSIVE: Replace single line breaks with spaces, keep only double line breaks (true paragraphs)
+        text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)  # Single \n → space
+        text = re.sub(r'\n{2,}', '\n\n', text)         # Normalize multiple \n to exactly \n\n
 
         # Trim accidental leading/trailing whitespace
         return text.strip()

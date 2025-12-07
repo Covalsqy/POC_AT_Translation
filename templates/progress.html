@@ -36,6 +36,57 @@
       .error { color: red; }
       .success { color: green; }
       textarea { width: 100%; height: 380px; font-family: monospace; font-size: 0.9rem; }
+      .quality-score-container {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      .quality-score-container h3 {
+        margin: 0 0 1rem 0;
+        color: #333;
+        font-size: 1.2rem;
+      }
+      .quality-display {
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+      }
+      .quality-score-circle {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: white;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      }
+      .quality-score-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+        line-height: 1;
+      }
+      .quality-score-max {
+        font-size: 0.9rem;
+        color: #666;
+        margin-top: 0.25rem;
+      }
+      .quality-details {
+        flex: 1;
+      }
+      .quality-level {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+      }
+      .quality-description {
+        font-size: 1rem;
+        color: #555;
+        line-height: 1.5;
+      }
     </style>
   </head>
   <body>
@@ -58,6 +109,22 @@
         <a href="#" id="downloadLink" style="display:inline-block; padding:.4rem .8rem; background:#2b7; color:white; border-radius:4px; text-decoration:none;">Download .txt</a>
         <a href="/" style="margin-left:1rem;">Translate another</a>
       </p>
+      
+      <!-- Quality Score Section -->
+      <div class="quality-score-container" id="qualityContainer" style="display:none;">
+        <h3>📊 Translation Quality Assessment</h3>
+        <div class="quality-display">
+          <div class="quality-score-circle" id="qualityCircle">
+            <div class="quality-score-value" id="qualityScoreValue">--</div>
+            <div class="quality-score-max">/100</div>
+          </div>
+          <div class="quality-details">
+            <div class="quality-level" id="qualityLevel">--</div>
+            <div class="quality-description" id="qualityDescription">Evaluating translation quality...</div>
+          </div>
+        </div>
+      </div>
+      
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
         <div>
           <h3>Original</h3>
@@ -76,7 +143,7 @@
         fetch('/progress')
           .then(r => r.json())
           .then(data => {
-            const { active, progress, result, original, download_url, error } = data;
+            const { active, progress, result, original, download_url, error, quality_score } = data;
             const { current_batch, total_batches, current_text } = progress || {};
 
             if (error) {
@@ -109,6 +176,22 @@
               document.getElementById('progressFill').style.width = '100%';
               document.getElementById('progressPercent').textContent = '100%';
               document.getElementById('currentBlockText').textContent = 'Done!';
+              
+              // Display quality score if available
+              if (quality_score) {
+                document.getElementById('qualityContainer').style.display = 'block';
+                document.getElementById('qualityScoreValue').textContent = quality_score.score.toFixed(1);
+                document.getElementById('qualityLevel').textContent = quality_score.level;
+                document.getElementById('qualityDescription').textContent = quality_score.description;
+                
+                // Set color based on quality level
+                const scoreCircle = document.getElementById('qualityCircle');
+                scoreCircle.style.borderLeft = `8px solid ${quality_score.color}`;
+                
+                const levelElement = document.getElementById('qualityLevel');
+                levelElement.style.color = quality_score.color;
+              }
+              
               return;
             }
 
