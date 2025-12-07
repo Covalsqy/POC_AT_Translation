@@ -43,18 +43,20 @@ echo ""
 
 # Upgrade pip
 echo "Upgrading pip..."
-pip install --upgrade pip > /dev/null 2>&1
+pip install --upgrade pip --quiet
 echo "✓ pip upgraded"
 echo ""
 
 # Install dependencies
 echo "Installing dependencies..."
-echo "This may take several minutes (downloading PyTorch, Transformers, etc.)"
+echo "This may take several minutes (downloading PyTorch ~700MB, Transformers, etc.)"
+echo ""
 pip install -r requirements.txt
 if [ $? -ne 0 ]; then
     echo "❌ Failed to install dependencies"
     exit 1
 fi
+echo ""
 echo "✓ All dependencies installed"
 echo ""
 
@@ -74,16 +76,10 @@ echo "=========================================="
 echo "✓ Setup Complete!"
 echo "=========================================="
 echo ""
-echo "To start the application:"
-echo "  1. Activate virtual environment:"
-echo "     source venv/bin/activate"
+echo "To start the application, run:"
+echo "  ./run.sh"
 echo ""
-echo "  2. Run the app:"
-echo "     python app.py"
-echo ""
-echo "  3. Open browser to:"
-echo "     http://127.0.0.1:5000"
-echo ""
-echo "To deactivate virtual environment later:"
-echo "  deactivate"
+echo "Or manually:"
+echo "  source venv/bin/activate"
+echo "  python app.py"
 echo ""

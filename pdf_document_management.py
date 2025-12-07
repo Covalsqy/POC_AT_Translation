@@ -58,11 +58,6 @@ class PDFDocumentManager:
         # Remove other C0/C1 control chars except newline (0x0A) and tab (0x09) and carriage return (0x0D)
         text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
 
-        # Remove lines that contain only numbers (page numbers)
-        lines = text.split('\n')
-        lines = [ln for ln in lines if not re.match(r'^\s*\d+\s*$', ln)]
-        text = '\n'.join(lines)
-
         # Normalize whitespace but preserve paragraphs
         text = re.sub(r'[ \t]{2,}', ' ', text)
         text = re.sub(r'\n{3,}', '\n\n', text)

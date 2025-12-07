@@ -39,89 +39,142 @@ class TranslationModel:
             return TranslationModel.LANGUAGE_CODES[key]
         raise ValueError(f"Unsupported language: {lang}")
 
-    @staticmethod
-    def _is_header_line(line: str) -> bool:
-        """Detect headers - lines ending with colon or very short labels or placeholders."""
-        s = line.strip()
-        if not s:
-            return False
-        return (s.endswith(':') or 
-                (len(s) <= 50 and s[0].isupper()) or
-                bool(re.match(r'^\[.*\]$', s)))
+    # Formatting detection removed to prioritize translation quality over output formatting
 
-    @staticmethod
-    def _is_bullet_line(line: str) -> bool:
-        """Detect list items including Roman numerals."""
-        return bool(re.match(r'^\s*([–\-•]|[IVX]+\s*[–\-])\s+', line))
-
-    @staticmethod
-    def _split_into_sentences(text: str) -> list[str]:
-        """Split paragraph into sentences for better translation of long texts."""
-        sentences = re.split(r'(?<=[.;])\s+(?=[A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝ])', text)
-        return [s.strip() for s in sentences if s.strip()]
-
-    @staticmethod
-    def _split_into_blocks(text: str):
-        """Split text into blocks, keeping chunks smaller to reduce hallucinations."""
-        lines = text.split('\n')
-        blocks = []
+    def _chunk_by_tokens(self, text: str, src: str, max_tokens: int = 250) -> list[str]:
+        """Split text into chunks at natural boundaries, targeting ~250 tokens per chunk.
         
-        i = 0
-        while i < len(lines):
-            line = lines[i]
-            
-            if not line.strip():
-                blocks.append({"type": "blank", "text": ""})
-                i += 1
+        Chunking priority (never splits mid-word):
+        1. Paragraph boundaries (\n\n)
+        2. Sentence boundaries (. ! ?)
+        3. Phrase boundaries (, ; :)
+        4. Whitespace (as last resort)
+        
+        Ensures every chunk starts/ends at clean boundaries for better translation quality.
+        """
+        if not text:
+            return []
+        
+        # Quick check: if entire text fits, return as-is
+        self.tokenizer.src_lang = src
+        test_tokens = self.tokenizer(text, return_tensors="pt", truncation=False)
+        if test_tokens['input_ids'].shape[1] <= max_tokens:
+            return [text]
+        
+        # Split by paragraphs first (best natural boundary)
+        paragraphs = text.split('\n\n')
+        chunks = []
+        current_chunk = []
+        current_tokens = 0
+        
+        for para in paragraphs:
+            if not para.strip():
                 continue
-            
-            if TranslationModel._is_header_line(line):
-                blocks.append({"type": "header", "text": line.strip()})
-                i += 1
-                continue
-            
-            if TranslationModel._is_bullet_line(line):
-                blocks.append({"type": "bullet", "text": line.strip()})
-                i += 1
-                continue
-            
-            # Regular paragraph
-            para_lines = [line]
-            i += 1
-            while i < len(lines):
-                next_line = lines[i]
-                if (not next_line.strip() or 
-                    TranslationModel._is_header_line(next_line) or
-                    TranslationModel._is_bullet_line(next_line)):
-                    break
-                para_lines.append(next_line)
-                i += 1
-            
-            full_para = " ".join(para_lines).strip()
-            
-            # Split long paragraphs into smaller chunks (reduced from 400 to 250)
-            if len(full_para) > 250:
-                sentences = TranslationModel._split_into_sentences(full_para)
-                current_group = []
-                current_length = 0
                 
+            # Tokenize paragraph to get actual token count
+            para_tokens = self.tokenizer(para, return_tensors="pt", truncation=False)
+            para_token_count = para_tokens['input_ids'].shape[1]
+            
+            # If single paragraph exceeds limit, split at sentence boundaries
+            if para_token_count > max_tokens:
+                # Save current chunk if any
+                if current_chunk:
+                    chunks.append('\n\n'.join(current_chunk))
+                    current_chunk = []
+                    current_tokens = 0
+                
+                # Split by sentences (. ! ?) - but not abbreviations like "Art." or "Dr."
+                # Look for sentence-ending punctuation followed by space and capital letter
+                sentences = re.split(r'(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÀÂÊÔÃÕÇ])', para)
+                if len(sentences) == 1:
+                    # Fallback: split on any . ! ? if no capital letters detected
+                    sentences = re.split(r'(?<=[.!?])\s+', para)
                 for sentence in sentences:
-                    sentence_len = len(sentence)
-                    # Reduced from 350 to 200 chars per group
-                    if current_length + sentence_len > 200 and current_group:
-                        blocks.append({"type": "paragraph", "text": " ".join(current_group)})
-                        current_group = [sentence]
-                        current_length = sentence_len
+                    if not sentence.strip():
+                        continue
+                    
+                    sent_tokens = self.tokenizer(sentence, return_tensors="pt", truncation=False)
+                    sent_token_count = sent_tokens['input_ids'].shape[1]
+                    
+                    # If single sentence exceeds limit, split at phrase boundaries
+                    if sent_token_count > max_tokens:
+                        # Save current chunk if any
+                        if current_chunk:
+                            chunks.append(' '.join(current_chunk))
+                            current_chunk = []
+                            current_tokens = 0
+                        
+                        # Split by phrases (, ; :)
+                        phrases = re.split(r'(?<=[,;:])\s+', sentence)
+                        for phrase in phrases:
+                            if not phrase.strip():
+                                continue
+                            
+                            phrase_tokens = self.tokenizer(phrase, return_tensors="pt", truncation=False)
+                            phrase_token_count = phrase_tokens['input_ids'].shape[1]
+                            
+                            # If single phrase still exceeds limit, split at whitespace (last resort)
+                            if phrase_token_count > max_tokens:
+                                # Save current chunk if any
+                                if current_chunk:
+                                    chunks.append(' '.join(current_chunk))
+                                    current_chunk = []
+                                    current_tokens = 0
+                                
+                                # Split by words (whitespace boundary - never mid-word!)
+                                words = phrase.split()
+                                for word in words:
+                                    word_tokens = self.tokenizer(word, return_tensors="pt", truncation=False)
+                                    word_token_count = word_tokens['input_ids'].shape[1]
+                                    
+                                    if current_tokens + word_token_count > max_tokens:
+                                        if current_chunk:
+                                            chunks.append(' '.join(current_chunk))
+                                        current_chunk = [word]
+                                        current_tokens = word_token_count
+                                    else:
+                                        current_chunk.append(word)
+                                        current_tokens += word_token_count
+                            
+                            # Phrase fits, try to add to current chunk
+                            elif current_tokens + phrase_token_count > max_tokens:
+                                if current_chunk:
+                                    chunks.append(' '.join(current_chunk))
+                                current_chunk = [phrase]
+                                current_tokens = phrase_token_count
+                            else:
+                                current_chunk.append(phrase)
+                                current_tokens += phrase_token_count
+                    
+                    # Sentence fits, try to add to current chunk
+                    elif current_tokens + sent_token_count > max_tokens:
+                        if current_chunk:
+                            chunks.append(' '.join(current_chunk))
+                        current_chunk = [sentence]
+                        current_tokens = sent_token_count
                     else:
-                        current_group.append(sentence)
-                        current_length += sentence_len + 1
-                
-                if current_group:
-                    blocks.append({"type": "paragraph", "text": " ".join(current_group)})
+                        current_chunk.append(sentence)
+                        current_tokens += sent_token_count
+            
+            # Paragraph fits within limit, try to add to current chunk
+            elif current_tokens + para_token_count > max_tokens:
+                # Current chunk would overflow, save it and start new
+                if current_chunk:
+                    chunks.append('\n\n'.join(current_chunk))
+                current_chunk = [para]
+                current_tokens = para_token_count
             else:
-                blocks.append({"type": "paragraph", "text": full_para})
+                # Add paragraph to current chunk
+                current_chunk.append(para)
+                current_tokens += para_token_count
         
-        return blocks
+        # Don't forget last chunk
+        if current_chunk:
+            chunks.append('\n\n'.join(current_chunk) if len(current_chunk) > 1 else ' '.join(current_chunk))
+        
+        return chunks if chunks else [text]
+
+
 
     def _translate_batch(self, texts: list[str], src: str, tgt_lang_id: int, max_len: int = 768) -> list[str]:
         """Translate a batch with conservative settings."""
@@ -151,7 +204,11 @@ class TranslationModel:
         return self.tokenizer.batch_decode(gen, skip_special_tokens=True)
 
     def translate(self, text: str, source_lang: str, target_lang: str) -> str:
-        """Block-level translation with smaller chunks to reduce hallucinations."""
+        """Translate text using token-aware chunking to maximize context per chunk.
+        
+        Priority: Translation quality over output formatting.
+        Uses up to 700 tokens (~3500 chars) per chunk for maximum context.
+        """
         if not text:
             return text
 
@@ -163,66 +220,25 @@ class TranslationModel:
         self.tokenizer.src_lang = src
         tgt_lang_id = self.tokenizer.get_lang_id(tgt)
 
-        blocks = self._split_into_blocks(text)
-        non_blank_blocks = [b for b in blocks if b["type"] != "blank"]
+        # Split text into optimal-size chunks that fit within token limits
+        chunks = self._chunk_by_tokens(text, src, max_tokens=250)
         
-        self.progress["total_batches"] = len(non_blank_blocks)
+        self.progress["total_batches"] = len(chunks)
         self.progress["current_batch"] = 0
-        print(f"Translating {len(non_blank_blocks)} blocks...")
+        print(f"Translating {len(chunks)} chunks (max context per chunk)...")
 
-        result_lines = []
+        results = []
 
-        for idx, block in enumerate(blocks):
-            block_type = block["type"]
-            block_text = block["text"]
+        for idx, chunk in enumerate(chunks):
+            self.progress["current_text"] = chunk[:80] + ("..." if len(chunk) > 80 else "")
 
-            if block_type == "blank":
-                result_lines.append("")
-                continue
-
-            self.progress["current_text"] = block_text[:80] + ("..." if len(block_text) > 80 else "")
-
-            # Conservative max_length - use 768 as default
-            translated = self._translate_batch([block_text], src, tgt_lang_id, max_len=768)[0]
-            
-            if block_type == "header":
-                result_lines.append(translated.strip())
-            elif block_type == "bullet":
-                result_lines.append(translated.strip())
-            else:  # paragraph
-                wrapped = self._wrap_text(translated.strip(), width=80)
-                result_lines.append(wrapped)
+            # Translate with full token budget
+            translated = self._translate_batch([chunk], src, tgt_lang_id, max_len=768)[0]
+            results.append(translated)
             
             self.progress["current_batch"] += 1
-            print(f"Block {self.progress['current_batch']}/{self.progress['total_batches']} done")
+            print(f"Chunk {self.progress['current_batch']}/{self.progress['total_batches']} done")
 
-        return "\n".join(result_lines)
+        # Join with double newline to preserve paragraph separation
+        return "\n\n".join(results)
 
-    @staticmethod
-    def _wrap_text(text: str, width: int = 80) -> str:
-        """Wrap text to specified width, preserving whole words."""
-        if not text:
-            return ""
-        
-        words = text.split()
-        lines = []
-        current_line = []
-        current_length = 0
-        
-        for word in words:
-            word_length = len(word)
-            needed_length = word_length + (1 if current_line else 0)
-            
-            if current_length + needed_length <= width:
-                current_line.append(word)
-                current_length += needed_length
-            else:
-                if current_line:
-                    lines.append(" ".join(current_line))
-                current_line = [word]
-                current_length = word_length
-        
-        if current_line:
-            lines.append(" ".join(current_line))
-        
-        return "\n".join(lines)

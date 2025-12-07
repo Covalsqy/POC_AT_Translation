@@ -30,7 +30,8 @@ def allowed_file(filename: str) -> bool:
 
 @app.route("/", methods=["GET"])
 def index():
-    lang_keys = sorted(set(TranslationModel.LANGUAGE_CODES.keys()))
+    # Only show full language names (filter out 2-letter codes)
+    lang_keys = sorted([lang for lang in TranslationModel.LANGUAGE_CODES.keys() if len(lang) > 2])
     return render_template("index.html", languages=lang_keys)
 
 

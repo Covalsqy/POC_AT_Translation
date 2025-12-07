@@ -1,6 +1,9 @@
-flask==3.0.0
-werkzeug==3.0.1
-torch==2.1.0
-transformers==4.35.0
-pdfminer.six==20221105
+flask==3.1.2
+werkzeug==3.1.4
+torch==2.9.1
+transformers==4.57.3
+sentencepiece==0.2.1
+protobuf==6.33.1
+pdfminer.six==20251107
 PyPDF2==3.0.1
+numpy==2.2.6
