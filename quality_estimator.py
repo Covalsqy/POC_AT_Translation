@@ -35,13 +35,17 @@ class QualityEstimator:
             model_path = download_model(self.model_name)
             self.model = load_from_checkpoint(model_path)
             
+            # Store tokenizer and max length for truncation detection
+            self.tokenizer = self.model.encoder.tokenizer
+            self.max_length = self.model.encoder.model.config.max_position_embeddings
+            
             # Move to GPU if available
             if torch.cuda.is_available():
                 print("✓ Using GPU for quality estimation")
             else:
                 print("✓ Using CPU for quality estimation (slower)")
             
-            print("✓ COMET-QE model loaded successfully")
+            print(f"✓ COMET-QE model loaded successfully (max tokens: {self.max_length})")
             
         except ImportError:
             raise ImportError(
@@ -71,6 +75,23 @@ class QualityEstimator:
         # This ensures COMET only evaluates translation quality, not formatting alignment
         source_cleaned = source.replace('\n', ' ').strip()
         translation_cleaned = translation.replace('\n', ' ').strip()
+        
+        # Detect potential truncation by tokenizing and checking lengths
+        src_tokens = self.tokenizer(source_cleaned, truncation=False, add_special_tokens=True)
+        mt_tokens = self.tokenizer(translation_cleaned, truncation=False, add_special_tokens=True)
+        
+        src_length = len(src_tokens['input_ids'])
+        mt_length = len(mt_tokens['input_ids'])
+        
+        if src_length > self.max_length:
+            print(f"⚠️  TRUNCATION DETECTED: Source text will be truncated for COMET-QE!")
+            print(f"    {src_length} tokens -> {self.max_length} tokens (LOST {src_length - self.max_length} tokens)")
+            print(f"    Quality score may be inaccurate due to missing context.")
+        
+        if mt_length > self.max_length:
+            print(f"⚠️  TRUNCATION DETECTED: Translation will be truncated for COMET-QE!")
+            print(f"    {mt_length} tokens -> {self.max_length} tokens (LOST {mt_length - self.max_length} tokens)")
+            print(f"    Quality score may be inaccurate due to missing context.")
         
         # Prepare data for COMET (expects list of dicts)
         data = [{

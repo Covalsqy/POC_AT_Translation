@@ -29,43 +29,37 @@ class PDFDocumentManager:
     @staticmethod
     def clean_text_for_translation(text: str) -> str:
         """
-        Conservative cleaning before sending text to a translation model:
-        - Normalize Unicode (NFC)
-        - Replace form-feed (page breaks) with newlines
-        - Remove most control characters (but keep newline and tab)
-        - Remove soft-hyphen and some invisible chars already handled elsewhere
-        - Expand a small set of locale abbreviations (example for Portuguese)
-        - Normalize whitespace but preserve newlines (keeps paragraph breaks)
-        - Remove lines that are only page numbers (digits with optional whitespace)
+        Minimal cleaning optimized for translation quality:
+        - Normalize Unicode (NFC) for consistent character representation
+        - Remove problematic invisible characters and soft hyphens
+        - Remove control characters that could confuse models
+        - Normalize whitespace to single spaces
+        - Keep text as continuous flow (no line breaks) for optimal translation
+        
+        Rationale: Translation models work best with clean, continuous text.
+        Formatting like paragraphs can be reconstructed if needed post-translation.
         """
         if not text:
             return text
 
-        # Unicode normalization
+        # Unicode normalization (canonical form)
         text = unicodedata.normalize('NFC', text)
 
-        # Replace page-break / form-feed with paragraph break
-        text = text.replace('\f', '\n\n')
-
-        # Remove soft-hyphen (often inserted by PDF hyphenation)
+        # Remove soft-hyphen (PDF artifacts from line breaks)
         text = text.replace('\u00ad', '')
 
-        # Common invisible chars already observed
-        text = text.replace('\ufeff', '')
-        text = text.replace('\u200b', '')
-        text = text.replace('\u00a0', ' ')
+        # Remove invisible/zero-width characters
+        text = text.replace('\ufeff', '')  # BOM
+        text = text.replace('\u200b', '')  # Zero-width space
+        text = text.replace('\u00a0', ' ')  # Non-breaking space -> regular space
 
-        # Remove other C0/C1 control chars except newline (0x0A) and tab (0x09) and carriage return (0x0D)
-        text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
+        # Remove control characters (except space)
+        text = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', text)
 
-        # Normalize whitespace but preserve paragraphs
-        text = re.sub(r'[ \t]{2,}', ' ', text)
-        
-        # AGGRESSIVE: Replace single line breaks with spaces, keep only double line breaks (true paragraphs)
-        text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)  # Single \n → space
-        text = re.sub(r'\n{2,}', '\n\n', text)         # Normalize multiple \n to exactly \n\n
+        # Normalize all whitespace to single spaces
+        text = re.sub(r'\s+', ' ', text)
 
-        # Trim accidental leading/trailing whitespace
+        # Trim
         return text.strip()
 
     @staticmethod

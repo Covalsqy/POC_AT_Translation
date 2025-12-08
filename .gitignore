@@ -34,5 +34,5 @@ Thumbs.db
 *.log
 
 # Misc
-input.txt
-output.txt
+input*.txt
+output*.txt
