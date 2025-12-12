@@ -11,6 +11,7 @@ class TranslationModel:
         'spanish': 'spa_Latn', 'es': 'spa_Latn',
         'french': 'fra_Latn', 'fr': 'fra_Latn',
         'german': 'deu_Latn', 'de': 'deu_Latn',
+        'italian': 'ita_Latn', 'it': 'ita_Latn',
         'chinese': 'zho_Hans', 'zh': 'zho_Hans',
         'arabic': 'arb_Arab', 'ar': 'arb_Arab',
         'russian': 'rus_Cyrl', 'ru': 'rus_Cyrl',
@@ -114,7 +115,7 @@ class TranslationModel:
         inputs = self.tokenizer(
             texts,
             return_tensors="pt",
-            padding=True,
+            padding='max_length',
             truncation=False,
             max_length=max_input_len
         ).to(self.device)
@@ -149,7 +150,7 @@ class TranslationModel:
 
         return self.tokenizer.batch_decode(gen, skip_special_tokens=True)
 
-    def translate(self, text: str, source_lang: str, target_lang: str, chunk_size: int = 400, num_beams: int = 12) -> str:
+    def translate(self, text: str, source_lang: str, target_lang: str, chunk_size: int = 512, num_beams: int = 12) -> str:
         """Translate text using NLLB-200 with optimized chunking strategy.
         
         Priority: Translation quality over output formatting.
@@ -174,8 +175,7 @@ class TranslationModel:
 
         self.tokenizer.src_lang = src
 
-        # Split text into smaller chunks (400 tokens instead of 512)
-        # This leaves more room for better translation without hitting limits
+        # Split text into smaller chunks (512 tokens)
         chunks = self._chunk_by_tokens(text, src, max_tokens=chunk_size)
         
         self.progress["total_batches"] = len(chunks)

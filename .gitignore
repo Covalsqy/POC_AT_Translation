@@ -18,7 +18,6 @@ transformers_cache/
 
 # Uploads and temporary files
 uploads/
-*.pdf
 
 # IDE
 .vscode/

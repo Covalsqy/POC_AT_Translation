@@ -66,9 +66,7 @@ if command -v pdftotext &> /dev/null; then
     echo "✓ pdftotext found (best PDF extraction)"
 else
     echo "⚠ pdftotext not found (optional, but recommended)"
-    echo "  Install with:"
-    echo "    Ubuntu/Debian: sudo apt-get install poppler-utils"
-    echo "    macOS: brew install poppler"
+    echo "  Install with: sudo apt-get install poppler-utils"
 fi
 echo ""
 

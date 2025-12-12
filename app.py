@@ -1,6 +1,7 @@
 from pathlib import Path
 import tempfile
 import threading
+import time
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash, jsonify
 from werkzeug.utils import secure_filename
 
@@ -22,7 +23,12 @@ translation_state = {
     "original": None,
     "download_url": None,
     "error": None,
-    "quality_score": None
+    "quality_score": None,
+    "timing": {
+        "total_time": 0.0,
+        "translation_time": 0.0,
+        "quality_estimation_time": 0.0
+    }
 }
 
 
@@ -47,6 +53,7 @@ def _translate_background(uploaded_path: Path, src_lang: str, tgt_lang: str, out
     """Background thread function for translation."""
     global translation_state
     try:
+        start_time = time.time()
         translation_state["error"] = None
         
         # Extract & clean
@@ -60,7 +67,11 @@ def _translate_background(uploaded_path: Path, src_lang: str, tgt_lang: str, out
         translator = TranslationModel(progress_callback=lambda: translation_state["progress"])
         
         # Translate - translator will update translation_state["progress"] directly
+        translation_start = time.time()
         translated = translator.translate(cleaned, src_lang, tgt_lang)
+        translation_end = time.time()
+        translation_time = translation_end - translation_start
+        print(f"✓ Translation completed in {translation_time:.2f} seconds")
 
         # Save translated text to temporary file
         out_path = UPLOAD_DIR / out_name
@@ -68,14 +79,29 @@ def _translate_background(uploaded_path: Path, src_lang: str, tgt_lang: str, out
 
         # Estimate translation quality using COMET-QE
         print("Evaluating translation quality...")
+        quality_estimation_time = 0.0
         try:
+            quality_start = time.time()
             estimator = QualityEstimator()
             quality_result = estimator.evaluate_with_interpretation(cleaned, translated)
+            quality_end = time.time()
+            quality_estimation_time = quality_end - quality_start
             translation_state["quality_score"] = quality_result
+            print(f"✓ Quality estimation completed in {quality_estimation_time:.2f} seconds")
             print(f"Quality Score: {quality_result['score']:.1f}/100 ({quality_result['level']})")
         except Exception as qe_error:
             print(f"Warning: Quality estimation failed: {qe_error}")
             translation_state["quality_score"] = None
+
+        total_time = time.time() - start_time
+        
+        # Store timing information
+        translation_state["timing"] = {
+            "total_time": total_time,
+            "translation_time": translation_time,
+            "quality_estimation_time": quality_estimation_time
+        }
+        print(f"✓ Total processing time: {total_time:.2f} seconds")
 
         translation_state["result"] = translated
         translation_state["download_url"] = f"/download/{out_name}"
@@ -122,7 +148,12 @@ def translate():
         "original": None,
         "download_url": None,
         "error": None,
-        "quality_score": None
+        "quality_score": None,
+        "timing": {
+            "total_time": 0.0,
+            "translation_time": 0.0,
+            "quality_estimation_time": 0.0
+        }
     })
 
     out_name = uploaded_path.stem + f"_{tgt_lang}.txt"
