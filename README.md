@@ -31,12 +31,12 @@ Portuguese, English, Spanish, French, German, Italian, Chinese, Arabic, Russian,
 - Linux (tested on Ubuntu)
 - CUDA-capable GPU recommended (will fallback to CPU with slower performance)
 - 6GB+ RAM for model loading
-- Optional: `poppler-utils` for improved PDF extraction
 
 ### Quick Setup (Recommended)
 
 ```bash
 # Clone repository
+git clone https://github.com/Covalsqy/POC_AT_Translation.git
 cd POC_AT_Translation
 
 # Run setup script (creates venv and installs dependencies)
@@ -57,9 +57,10 @@ source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
-
-# Optional: Install pdftotext for better PDF extraction
 sudo apt-get install poppler-utils
+
+# Run application
+python3 app.py
 ```
 
 ### HuggingFace Authentication (Required for COMET-QE)
